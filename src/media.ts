@@ -7,6 +7,8 @@ import { MediaInfo } from "./types"
 
 let latestMedia: MediaInfo | null = null
 let helperProcess: ChildProcess | null = null
+let lastValidMediaTime = 0
+const MEDIA_GRACE_PERIOD = 30_000 // Keep last valid media for 30s after null
 
 // Map AUMID (Application User Model ID) to friendly process names
 const AUMID_MAP: Record<string, string> = {
@@ -41,7 +43,10 @@ function resolveFriendlyName(aumid: string | undefined): string | undefined {
 }
 
 export function getLatestMedia(): MediaInfo | null {
-  return latestMedia
+  // If we have media, return it
+  if (latestMedia) return latestMedia
+  // Grace period expired — no media
+  return null
 }
 
 export function startMediaDetection() {
@@ -64,7 +69,10 @@ export function startMediaDetection() {
   rl.on("line", (line) => {
     const trimmed = line.trim()
     if (!trimmed || trimmed === "null") {
-      latestMedia = null
+      // Grace period: only clear media if no valid update for 30s
+      if (latestMedia && Date.now() - lastValidMediaTime > MEDIA_GRACE_PERIOD) {
+        latestMedia = null
+      }
       return
     }
     try {
@@ -72,11 +80,12 @@ export function startMediaDetection() {
       if (parsed && parsed.title) {
         parsed.processName = resolveFriendlyName(parsed.processName)
         latestMedia = parsed
-      } else {
+        lastValidMediaTime = Date.now()
+      } else if (latestMedia && Date.now() - lastValidMediaTime > MEDIA_GRACE_PERIOD) {
         latestMedia = null
       }
     } catch {
-      latestMedia = null
+      // Don't clear on parse errors
     }
   })
 
