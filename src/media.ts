@@ -8,6 +8,7 @@ import { MediaInfo } from "./types"
 let latestMedia: MediaInfo | null = null
 let helperProcess: ChildProcess | null = null
 let lastValidMediaTime = 0
+let onMediaChangeCallback: ((media: MediaInfo | null) => void) | null = null
 const MEDIA_GRACE_PERIOD = 30_000 // Keep last valid media for 30s after null
 
 // Map AUMID (Application User Model ID) to friendly process names
@@ -42,15 +43,23 @@ function resolveFriendlyName(aumid: string | undefined): string | undefined {
   return last || aumid
 }
 
+function mediaChanged(a: MediaInfo | null, b: MediaInfo | null): boolean {
+  if (a === b) return false
+  if (!a || !b) return true
+  return a.title !== b.title || a.artist !== b.artist || a.processName !== b.processName
+}
+
 export function getLatestMedia(): MediaInfo | null {
-  // If we have media, return it
   if (latestMedia) return latestMedia
-  // Grace period expired — no media
   return null
 }
 
+/** Register callback for immediate push when media changes */
+export function setOnMediaChange(cb: (media: MediaInfo | null) => void) {
+  onMediaChangeCallback = cb
+}
+
 export function startMediaDetection() {
-  // Prefer C# media-helper.exe (reliable WinRT access)
   const helperExe = resolve(process.cwd(), "scripts", "media-helper.exe")
 
   if (!existsSync(helperExe)) {
@@ -71,7 +80,11 @@ export function startMediaDetection() {
     if (!trimmed || trimmed === "null") {
       // Grace period: only clear media if no valid update for 30s
       if (latestMedia && Date.now() - lastValidMediaTime > MEDIA_GRACE_PERIOD) {
+        const prev = latestMedia
         latestMedia = null
+        if (mediaChanged(prev, null)) {
+          onMediaChangeCallback?.(null)
+        }
       }
       return
     }
@@ -79,10 +92,18 @@ export function startMediaDetection() {
       const parsed = JSON.parse(trimmed) as MediaInfo
       if (parsed && parsed.title) {
         parsed.processName = resolveFriendlyName(parsed.processName)
+        const prev = latestMedia
         latestMedia = parsed
         lastValidMediaTime = Date.now()
+        if (mediaChanged(prev, parsed)) {
+          onMediaChangeCallback?.(parsed)
+        }
       } else if (latestMedia && Date.now() - lastValidMediaTime > MEDIA_GRACE_PERIOD) {
+        const prev = latestMedia
         latestMedia = null
+        if (mediaChanged(prev, null)) {
+          onMediaChangeCallback?.(null)
+        }
       }
     } catch {
       // Don't clear on parse errors

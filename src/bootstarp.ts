@@ -1,6 +1,6 @@
 import ActiveWindow, { WindowInfo } from "@paymoapp/active-window"
 import { Pusher } from "./pusher"
-import { getLatestMedia, startMediaDetection, stopMediaDetection } from "./media"
+import { getLatestMedia, setOnMediaChange, startMediaDetection, stopMediaDetection } from "./media"
 
 import { pushDataReplacor } from "./replacer"
 import { throttle } from "./utils"
@@ -17,6 +17,12 @@ export async function bootstrap() {
 
   // Start media detection (C# media-helper)
   startMediaDetection()
+
+  // On media change: immediately push with current active window
+  setOnMediaChange(() => {
+    const activeWin = ActiveWindow.getActiveWindow()
+    if (activeWin) handler(activeWin)
+  })
 
   ActiveWindow.subscribe(throttle(handler, 100))
 

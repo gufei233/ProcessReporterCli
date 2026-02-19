@@ -20,8 +20,6 @@ export class Pusher {
     cancelToken: AbortController
   }[]
 
-  private lastSentKey: string | null = null
-  private lastSentTime = 0
   private onStatusUpdate: StatusCallback | null = null
 
   setStatusCallback(cb: StatusCallback) {
@@ -46,22 +44,7 @@ export class Pusher {
     this.batch(payload)
   }
 
-  private contentKey(d: ReportPayload): string {
-    return JSON.stringify({ p: d.process.name, d: d.process.description, m: d.media })
-  }
-
   private batch(data: ReportPayload) {
-    const now = Date.now()
-    const key = this.contentKey(data)
-
-    // Deduplicate: skip if same content was sent within the last 30 seconds
-    if (this.lastSentKey === key && now - this.lastSentTime < 1000 * 30) {
-      return
-    }
-
-    this.lastSentKey = key
-    this.lastSentTime = now
-
     const cancelToken = new AbortController()
     const fetcher = async () => {
       try {

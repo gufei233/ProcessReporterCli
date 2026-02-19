@@ -119,5 +119,5 @@ export const s3 = {
 }
 
 export const pushConfig = {
-  interval: 30_000,
+  interval: 10_000,
 }
