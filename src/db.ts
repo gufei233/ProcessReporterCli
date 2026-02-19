@@ -9,7 +9,7 @@ let _db: sqlite.Database<sqlite3.Database, sqlite3.Statement> | null = null
 
 const dbFile = resolve(
   require("os").homedir(),
-  "./AppData/Local/ProcessRepoter/data.db"
+  "./AppData/Local/ProcessReporter/data.db"
 )
 
 mkdirSync(path.dirname(dbFile), { recursive: true })

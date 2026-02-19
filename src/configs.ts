@@ -31,6 +31,15 @@ export const rules: Rule[] = [
     override: {
       iconUrl: "",
     },
+    extractMedia: (title) => {
+      // QQ音乐 window title format: "歌曲名 - 歌手"
+      if (!title) return null
+      const parts = title.split(" - ")
+      if (parts.length >= 2) {
+        return { title: parts[0].trim(), artist: parts.slice(1).join(" - ").trim() }
+      }
+      return null
+    },
   },
   {
     matchApplication: "WindowsTerminal.exe",
@@ -57,6 +66,21 @@ export const rules: Rule[] = [
       },
     },
   },
+  {
+    matchApplication: "NetEase Cloud Music",
+    replace: {
+      application: () => "网易云音乐",
+      description: (des) => (des ? "正在听:\n-> " + des?.trim() : des),
+    },
+    extractMedia: (title) => {
+      if (!title) return null
+      const parts = title.split(" - ")
+      if (parts.length >= 2) {
+        return { title: parts[0].trim(), artist: parts.slice(1).join(" - ").trim() }
+      }
+      return null
+    },
+  },
 ]
 
 rules.push({
@@ -76,17 +100,21 @@ export const ignoreProcessNames: (
   | string
   | RegExp
   | ((processName: string) => boolean)
-)[] = ["下载"]
+)[] = [
+  "下载",
+  "tray_windows_release",
+  "tray_windows_release.exe",
+  /^SearchHost/,
+]
 
 export const s3 = {
-  accountId: "de7ecb0eaa0a328071255d557a6adb66",
   accessKeyId: process.env.S3_ACCESS_KEY as string,
   secretAccessKey: process.env.S3_SECRET_KEY as string,
-  bucket: "process-reporter",
-  customDomain: "https://process-reporter-cdn.innei.in",
-  region: "auto",
+  bucket: process.env.S3_BUCKET as string,
+  customDomain: process.env.S3_CUSTOM_DOMAIN as string,
+  region: process.env.S3_REGION || "Garage", // Garage 通常不需要特定 region，填默认的即可
   get endpoint() {
-    return `https://${s3.accountId}.r2.cloudflarestorage.com`
+    return process.env.S3_ENDPOINT as string
   },
 }
 

@@ -1,7 +1,7 @@
 import { ignoreProcessNames, rules } from "./configs"
-import { PushData, PushDto } from "./pusher"
+import { PushData } from "./pusher"
 
-export const pushDataReplacor = async (data: PushData) => {
+export const pushDataReplacor = async (data: PushData): Promise<PushData | undefined> => {
   const processName = data.process
 
   if (
@@ -22,7 +22,8 @@ export const pushDataReplacor = async (data: PushData) => {
       rule.matchApplication === data.process || rule.matchApplication === "*"
   )
   if (!rule) return data
-  const finalIconProps: PushDto["meta"] =
+
+  const finalIconProps: { iconUrl?: string; iconBase64?: string } =
     typeof rule.override?.iconUrl !== "undefined"
       ? {
           iconUrl: rule.override.iconUrl,
@@ -38,9 +39,22 @@ export const pushDataReplacor = async (data: PushData) => {
   const finalDescription =
     rule.replace?.description?.(data.description) || data.description
 
+  // If no SMTC media detected, try extracting from window title via rule
+  let media = data.media
+  if (!media && rule.extractMedia && data.description) {
+    const extracted = rule.extractMedia(data.description)
+    if (extracted) {
+      media = {
+        ...extracted,
+        processName: finalProcessName,
+      }
+    }
+  }
+
   return {
     process: finalProcessName,
     description: finalDescription,
     ...finalIconProps,
+    media,
   }
 }

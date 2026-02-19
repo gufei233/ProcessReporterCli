@@ -1,7 +1,7 @@
 import { resolve } from "path"
 import { existsSync, writeFileSync } from "fs"
 
-process.title = "Process Report Cli"
+process.title = "Process Reporter"
 
 const PKG_PATH = resolve(process.cwd(), "./package.json")
 if (!existsSync(PKG_PATH)) {
@@ -10,4 +10,18 @@ if (!existsSync(PKG_PATH)) {
 
 import("./bootstarp").then(({ bootstrap }) => {
   bootstrap()
+})
+
+import("./tray").then(({ initTray, updateTrayStatus }) => {
+  import("./pusher").then(({ Pusher }) => {
+    Pusher.shared.setStatusCallback(updateTrayStatus)
+  })
+
+  import("./media").then(({ stopMediaDetection }) => {
+    initTray({
+      onQuit: () => {
+        stopMediaDetection()
+      },
+    })
+  })
 })

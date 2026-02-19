@@ -12,6 +12,7 @@ const s3client = new S3Client({
     accessKeyId: s3.accessKeyId,
     secretAccessKey: s3.secretAccessKey,
   },
+  forcePathStyle: true,
 })
 
 export async function uploadToS3(

@@ -1,22 +1,17 @@
 import { endpoint, updateKey } from "./configs"
 import { logger } from "./logger"
 import { Uploader } from "./uploader"
-import { equalObject } from "./utils"
+import { MediaInfo, ProcessInfo, ReportPayload } from "./types"
 
-export interface PushDto {
+export interface PushData {
   process: string
-
-  meta?: {
-    iconUrl?: string
-    iconBase64?: string
-    description?: string
-  }
-
-  timestamp: number
-  key: string
+  description?: string
+  iconUrl?: string
+  iconBase64?: string
+  media?: MediaInfo | null
 }
 
-export type PushData = Pick<PushDto, "process"> & PushDto["meta"]
+type StatusCallback = (processName: string, media: MediaInfo | null) => void
 
 export class Pusher {
   static readonly shared = new Pusher()
@@ -25,45 +20,59 @@ export class Pusher {
     cancelToken: AbortController
   }[]
 
-  private dataList = [] as PushDto[]
+  private lastSentKey: string | null = null
+  private lastSentTime = 0
+  private onStatusUpdate: StatusCallback | null = null
 
-  push(data: PushData) {
-    const { process, ...meta } = data
-    this.dataList.push({
-      key: updateKey,
-      timestamp: Date.now(),
-      process,
-      meta,
-    })
-    this.batch()
+  setStatusCallback(cb: StatusCallback) {
+    this.onStatusUpdate = cb
   }
 
-  batch() {
-    const data = this.dataList.at(-1)
+  push(data: PushData) {
+    const processInfo: ProcessInfo = {
+      name: data.process,
+      iconUrl: data.iconUrl,
+      iconBase64: data.iconBase64,
+      description: data.description,
+    }
 
-    if (!data) return
+    const payload: ReportPayload = {
+      key: updateKey,
+      timestamp: Date.now(),
+      process: processInfo,
+      media: data.media || undefined,
+    }
 
+    this.batch(payload)
+  }
+
+  private contentKey(d: ReportPayload): string {
+    return JSON.stringify({ p: d.process.name, d: d.process.description, m: d.media })
+  }
+
+  private batch(data: ReportPayload) {
     const now = Date.now()
+    const key = this.contentKey(data)
 
-    const last2 = this.dataList.at(-2)
+    // Deduplicate: skip if same content was sent within the last 30 seconds
+    if (this.lastSentKey === key && now - this.lastSentTime < 1000 * 30) {
+      return
+    }
 
-    if (last2)
-      if (equalObject(data, last2) && now - last2.timestamp < 1000 * 30) {
-        return
-      }
+    this.lastSentKey = key
+    this.lastSentTime = now
 
     const cancelToken = new AbortController()
     const fetcher = async () => {
       try {
         try {
-          const iconBase64 = data.meta?.iconBase64
+          const iconBase64 = data.process.iconBase64
           if (iconBase64) {
-            data.meta!.iconUrl = await Uploader.shared.uploadIcon(
+            data.process.iconUrl = await Uploader.shared.uploadIcon(
               iconBase64,
-              data.process
+              data.process.name
             )
-
-            delete data.meta?.iconBase64
+            delete data.process.iconBase64
           }
 
           const body = JSON.stringify(data)
@@ -75,8 +84,11 @@ export class Pusher {
             body,
             signal: cancelToken.signal,
           })
+
+          this.onStatusUpdate?.(data.process.name, data.media || null)
+
           return res
-        } catch (err) {
+        } catch (err: any) {
           if (err.name === "AbortError") {
             logger.log("AbortError: Fetch request aborted")
           } else logger.error(err)
@@ -86,7 +98,6 @@ export class Pusher {
         this.requestQueue = this.requestQueue.filter(
           (task) => task.cancelToken !== cancelToken
         )
-        this.dataList = this.dataList.filter((item) => item !== data)
       }
     }
 
@@ -99,9 +110,12 @@ export class Pusher {
     this.requestQueue = []
     this.requestQueue.push({ fetcher, cancelToken: cancelToken })
 
+    const mediaStr = data.media
+      ? ` | Media: ${data.media.title} - ${data.media.artist}`
+      : ""
     logger.log(
-      "Pushing process",
-      data.process + " - " + (data.meta?.description || "N/A")
+      "Pushing",
+      data.process.name + " - " + (data.process.description || "N/A") + mediaStr
     )
     fetcher()
   }

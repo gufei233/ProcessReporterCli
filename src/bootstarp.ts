@@ -1,5 +1,6 @@
 import ActiveWindow, { WindowInfo } from "@paymoapp/active-window"
 import { Pusher } from "./pusher"
+import { getLatestMedia, startMediaDetection, stopMediaDetection } from "./media"
 
 import { pushDataReplacor } from "./replacer"
 import { throttle } from "./utils"
@@ -14,6 +15,9 @@ export async function bootstrap() {
     process.exit(0)
   }
 
+  // Start media detection (C# media-helper)
+  startMediaDetection()
+
   ActiveWindow.subscribe(throttle(handler, 100))
 
   handler(ActiveWindow.getActiveWindow())
@@ -23,14 +27,25 @@ export async function bootstrap() {
     pushConfig.interval
   )
 
+  // Clean up on exit
+  const cleanup = () => {
+    stopMediaDetection()
+    process.exit(0)
+  }
+  process.on("SIGINT", cleanup)
+  process.on("SIGTERM", cleanup)
+
   async function handler(activeWin: WindowInfo | null) {
     if (!activeWin) return
+
+    const media = getLatestMedia()
 
     const transformedData = await pushDataReplacor({
       process: activeWin.application,
       description:
         activeWin.title === activeWin.application ? undefined : activeWin.title,
       iconBase64: activeWin.icon,
+      media,
     })
 
     if (!transformedData) return

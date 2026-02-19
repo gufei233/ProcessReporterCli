@@ -48,6 +48,10 @@ dist
 data.db
 logs
 
+# C# build artifacts
+scripts/media-helper/bin
+scripts/media-helper/obj
+
 /lib
 .pnp.cjs
 .pnp.loader.mjs
