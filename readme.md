@@ -20,6 +20,10 @@ Windows 客户端，用于实时上报当前前台进程和媒体播放信息到
 
 ## 快速开始
 
+### 修改云函数
+
+替换`update.ts`为 [该版本](https://github.com/gufei233/ProcessReporterCli/blob/main/update.ts)
+
 ### 从源码构建
 
 ```bash
@@ -232,3 +236,4 @@ dist/
 ## License
 
 MIT
+
